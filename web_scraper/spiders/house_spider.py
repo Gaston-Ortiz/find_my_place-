@@ -66,6 +66,6 @@ class HouseSpider(scrapy.Spider):
         # Validate and convert the scraped data to the defined model
         item = items.HouseAdvertisement(**item)
 
-        # Append the scraped data to the global list
-        scraped_data.append(item.model_dump())
+        # # Append the scraped data to the global list
+        # scraped_data.append(item.model_dump())
         yield item

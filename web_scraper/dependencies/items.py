@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator 
 from typing import Optional
 
 
@@ -94,3 +94,13 @@ class HouseAdvertisement(BaseModel):
         if isinstance(v, str):
             return v.strip()
         return v
+    
+
+    @model_validator(mode="before")
+    def combine_name_and_description(cls, values):
+        name = values.get("name")
+        description = values.get("description")
+        if name is not None and description is not None:
+            # Create a new description in the format: "name:\noriginal description"
+            values["description"] = f"{name}:\n{description}"
+        return values

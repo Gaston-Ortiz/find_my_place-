@@ -26,7 +26,7 @@ def get_embedding_model(
     Returns an embedding model based on the specified model name.
 
     Args:
-        model (str): The name of the embedding model to use. Defaults to the value specified in settings.EMBEDDING_MODEL_DESCRIPTION.
+        model (str): The name of the embedding model to use. Defaults to the value specified in settings.EMBEDDING_MODEL.
     Returns:
         An instance of the embedding model. If the model name contains "openai", an instance of OpenAIEmbeddings is returned.
         Otherwise, an instance of HuggingFaceEmbeddings is returned with the specified model name.
