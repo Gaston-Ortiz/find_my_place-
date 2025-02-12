@@ -1,0 +1,7 @@
+name: web_scraper
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - poetry=2.0.1
