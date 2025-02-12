@@ -45,12 +45,12 @@ async def get_houses(
         if search_query:
             # Perform semantic search
             results = vector_store.similarity_search(search_query, k=limit)
-            return [doc.metadata for doc in results]
+            return [doc.model_dump(exclude={"id", "type"}) for doc in results]
         else:
             # Regular pagination
             response = es_client.search(
                 index=settings.ELASTIC_INDEX_NAME,
-                body={"from": skip, "size": limit, "query": {"match_all": {}}},
+                body={"from": skip, "size": limit, "query": {"match_all": {}}, "_source": ["text", "metadata"]},
             )
             return [hit["_source"] for hit in response["hits"]["hits"]]
     except Exception as e:
@@ -79,7 +79,11 @@ async def get_house(code_number: int):
     Retrieve a specific house by ID
     """
     try:
-        response = es_client.get(index=settings.ELASTIC_INDEX_NAME, id=code_number)
+        response = es_client.get(
+            index=settings.ELASTIC_INDEX_NAME,
+            id=code_number,
+            _source=["text", "metadata"]
+        )
         return response["_source"]
     except NotFoundError:
         raise HTTPException(status_code=404, detail="House not found")
@@ -94,13 +98,26 @@ async def update_house(code_number: int, house: models.HouseAdvertisementUpdate)
     """
     try:
         # Check if document exists
-        es_client.get(index=settings.ELASTIC_INDEX_NAME, id=code_number)
+        current_document = es_client.get(index=settings.ELASTIC_INDEX_NAME, id=code_number, _source=["text", "metadata"])["_source"]
 
-        # Update document
+        # Extract only the fields provided in the update.
+        update_data = house.model_dump(exclude_unset=True)
+
+        # If the user provided an updated description, use it. Otherwise, use the existing 'text' field from the document.
+        new_description = update_data.get("description", current_document.get("text"))
+        # Remove 'description' from the update data so it doesn't interfere with metadata.
+        update_data.pop("description", None)
+
+        # Merge metadata: start with the existing metadata and update only the keys provided.
+        new_metadata = current_document.get("metadata", {}).copy()
+        new_metadata.update(update_data)
+
+        # Create a new document instance.
         document = Document(
-            page_content=house.description,
-            metadata=house.model_dump(exclude={"description"}),
+            page_content=new_description,
+            metadata=new_metadata,
         )
+
         vector_store.add_documents([document], ids=[code_number])
         return {"message": "House updated successfully"}
     except NotFoundError:

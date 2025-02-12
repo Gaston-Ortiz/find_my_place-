@@ -4,21 +4,21 @@ from typing import Optional
 
 class BaseHouse(BaseModel):
     # Extra characteristic fields
-    total_area: Optional[str] = Field(None, alias="Superficie total")
-    covered_area: Optional[str] = Field(None, alias="Superficie cubierta")
-    age: Optional[str] = Field(None, alias="Antiguedad")
-    bathrooms: Optional[str] = Field(None, alias="Baños")
-    rooms: Optional[str] = Field(None, alias="Ambientes")
-    garages: Optional[str] = Field(None, alias="Garages")
-    bedrooms: Optional[str] = Field(None, alias="Dormitorios")
-    orientation: Optional[str] = Field(None, alias="Orientación")
-    credit_approved: Optional[str] = Field(None, alias="Apto crédito")
-    private_neighborhood: Optional[str] = Field(None, alias="En barrio privado")
-    street: Optional[str] = Field(None, alias="Calle")
-    neighborhood: Optional[str] = Field(None, alias="Barrio")
-    number: Optional[str] = Field(None, alias="Número")
-    apartment: Optional[str] = Field(None, alias="Departamento")
-    comment: Optional[str] = Field(None, alias="Comentario")
+    total_area: Optional[str] = None
+    covered_area: Optional[str] = None
+    age: Optional[str] = None
+    bathrooms: Optional[str] = None
+    rooms: Optional[str] = None
+    garages: Optional[str] = None
+    bedrooms: Optional[str] = None
+    orientation: Optional[str] = None
+    credit_approved: Optional[str] = None
+    private_neighborhood: Optional[str] = None
+    street: Optional[str] = None
+    neighborhood: Optional[str] = None
+    number: Optional[str] = None
+    apartment: Optional[str] = None
+    comment: Optional[str] = None
 
 
 # Define the data model
