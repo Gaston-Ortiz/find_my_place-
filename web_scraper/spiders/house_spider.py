@@ -2,21 +2,36 @@ import scrapy
 
 # Local import
 from web_scraper.dependencies import items
+from web_scraper.log import logger
 
 scraped_data = []
 
 
 class HouseSpider(scrapy.Spider):
+    """A spider for scraping house listings from compraensanjuan.com.
+
+    This spider crawls through house listing pages on compraensanjuan.com, extracting details
+    about properties including names, prices, descriptions and other metadata.
+
+    Attributes:
+        name (str): Identifier for this spider, used by Scrapy
+        allowed_domains (list): List of domains this spider is restricted to
+        start_urls (list): Initial URLs to begin crawling from
+        total_pages_to_scrape (int): Maximum number of listing pages to crawl
+        current_page (int): Counter for number of pages crawled so far
+    """
     name = "house_spider"
     allowed_domains = ["compraensanjuan.com"]
     start_urls = ["https://www.compraensanjuan.com/b.php?cat=100&orden=0&pagina=1"]
-    total_pages_to_scrape = 1
+    total_pages_to_scrape = 10
     current_page = 0
-
 
     def parse(self, response: scrapy.http.Response):
         """Extract product links from the listings page."""
+        logger.info("Parsing the listings page")
         list_houses = response.css("p.aviso-title")
+
+        logger.info(f"Found {len(list_houses)} houses in the listings page")
 
         for house in list_houses:
             house_link = house.css("a.title.orange-link").attrib["href"]
@@ -28,12 +43,17 @@ class HouseSpider(scrapy.Spider):
 
         # Iterate over the next pages
         if next_page is not None and self.current_page < self.total_pages_to_scrape:
+            logger.info(f"Scraping the next page: {next_page}")
             self.current_page += 1
             next_page_url = response.urljoin(next_page)
             yield response.follow(next_page_url, callback=self.parse)
 
+        logger.info(f"Scraped {self.current_page} pages")
+
     def parse_product_details(self, response):
         """Extract laptop details from individual product pages."""
+
+        logger.info("Parsing the individual product details")
         description = response.css(
             "p.comentario-caracteristicas-anuncio::text"
         ).getall()

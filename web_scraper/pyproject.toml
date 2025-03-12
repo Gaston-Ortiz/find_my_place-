@@ -1,9 +1,9 @@
 [project]
-name = "web-scraper"
+name = "web_scraper"
 version = "0.1.0"
 description = ""
 authors = [
-    {name = "gaston",email = "gaston.arturo@getrightdata.com"}
+    {name = "gaston",email = "gastonortiz10@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.11,<4.0"
@@ -18,10 +18,14 @@ dependencies = [
     "langchain-aws (>=0.2.12,<0.3.0)",
     "boto3 (>=1.36.17,<2.0.0)",
     "elasticsearch (>=8.17.1,<9.0.0)",
-    "langchain-elasticsearch (>=0.3.2,<0.4.0)"
+    "langchain-elasticsearch (>=0.3.2,<0.4.0)",
+    "pytest (>=8.3.5,<9.0.0)"
 ]
 
-langchain-huggingface langchain-openai langchain-aws boto3 elasticsearch langchain-elasticsearch
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"

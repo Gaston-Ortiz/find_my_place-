@@ -1,4 +1,5 @@
-from pydantic import BaseModel, Field, field_validator, model_validator 
+from datetime import datetime, UTC
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional
 
 
@@ -30,6 +31,8 @@ class HouseAdvertisement(BaseModel):
     number: Optional[str] = Field(None, alias="Número")
     apartment: Optional[str] = Field(None, alias="Departamento")
     comment: Optional[str] = Field(None, alias="Comentario")
+
+    updated_db: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     @field_validator("price", mode="before")
     def parse_price(cls, value):
@@ -94,7 +97,6 @@ class HouseAdvertisement(BaseModel):
         if isinstance(v, str):
             return v.strip()
         return v
-    
 
     @model_validator(mode="before")
     def combine_name_and_description(cls, values):

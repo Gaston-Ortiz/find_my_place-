@@ -56,3 +56,7 @@ Thumbs.db
 app/mysql/alembic/versions/*revision_*
 logs/
 app/alembic_versions/*
+.env
+__pycache__/
+.pytest_cache/
+*.pyc

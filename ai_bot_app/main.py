@@ -4,6 +4,7 @@ from fastapi import FastAPI
 # Internal dependencies
 from ai_bot_app.routers.products import crud
 from ai_bot_app.routers.bot import ai_bot
+from ai_bot_app.log import logger
 
 app = FastAPI(
     title="APIs for AI Bot App",
@@ -13,3 +14,5 @@ app = FastAPI(
 
 app.include_router(crud.router, prefix="/api/v1")
 app.include_router(ai_bot.router, prefix="/api/v1")
+
+logger.info("AI Bot App started")

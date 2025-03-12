@@ -10,11 +10,11 @@ SPIDER_MODULES = ["web_scraper.spiders"]
 NEWSPIDER_MODULE = "web_scraper.spiders"
 
 ITEM_PIPELINES = {
-   "web_scraper.pipelines.ElasticSearchPipeline": 300,
+    "web_scraper.pipelines.ElasticSearchPipeline": 300,
 }
 
 # Elasticsearch settings
-ELASTIC_URL = "127.0.0.1:9200"
+ELASTIC_URL = "elasticsearch:9200"
 ELASTIC_INDEX_NAME = "scrapy_items"
 
 # Embedding settings

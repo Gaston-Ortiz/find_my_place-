@@ -1,19 +1,35 @@
-from web_scraper.dependencies.embedding import get_embedding_model
+# Third party imports
 import elasticsearch
 from langchain_core.documents import Document
-from web_scraper.dependencies import items
+from langchain_elasticsearch import ElasticsearchStore
+
+# Local imports
 from web_scraper import settings
+from web_scraper.dependencies import items
+from web_scraper.dependencies.embedding import get_embedding_model, retrieval_strategies
+from web_scraper.log import logger
 
 
 class ElasticSearchPipeline:
-    collection_name = "scrapy_items"
+    """Pipeline for storing scraped items in Elasticsearch with vector embeddings.
 
-    # def __init__(self, mongo_uri, mongo_db, embedding_model, index_name, strategy):
-    #     self.elas = mongo_uri
-    #     self.mongo_db = mongo_db
-    #     self.embedding_model = embedding_model
-    #     self.index_name = index_name
-    #     self.strategy = strategy
+    This pipeline processes scraped house listings by:
+    1. Converting the description text into vector embeddings
+    2. Storing both the embeddings and metadata in Elasticsearch
+    3. Enabling semantic search capabilities through the vector store
+
+    Attributes:
+        collection_name (str): Name of the collection in Elasticsearch
+        vector_store (ElasticsearchStore): Vector store for document embeddings
+        es_client (elasticsearch.Elasticsearch): Elasticsearch client connection
+
+    Methods:
+        open_spider: Initializes Elasticsearch and embedding model connections
+        process_item: Processes each scraped item into a document with embeddings
+        close_spider: Closes connections when spider finishes
+    """
+
+    collection_name = "scrapy_items"
 
     def open_spider(self, spider):
         es_client = elasticsearch.Elasticsearch(
@@ -35,12 +51,14 @@ class ElasticSearchPipeline:
         )
 
     def process_item(self, house_item: items.HouseAdvertisement, spider):
-        # house_item = items.HouseAdvertisement(**house_item)
+        logger.info(f"Processing item: {house_item}")
 
         document = Document(
             page_content=house_item.description,
             metadata=house_item.model_dump(exclude={"description", "code_number"}),
         )
+
+        logger.info(f"Adding document id {house_item.code_number} to vector store")
 
         self.vector_store.add_documents([document], ids=[house_item.code_number])
 
@@ -49,3 +67,4 @@ class ElasticSearchPipeline:
     def close_spider(self, spider):
         self.es_client.close()
         self.vector_store.close()
+        logger.info("Closed spider")

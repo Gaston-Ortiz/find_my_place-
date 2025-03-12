@@ -1,8 +1,8 @@
 # Third party imports
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter
 
 # Internal dependencies
-from ai_bot_app import settings
+from ai_bot_app.log import logger
 from ai_bot_app.routers.routers_dependencies.react_agent import get_react_agent
 
 
@@ -28,6 +28,7 @@ async def get_bot_response(question: str, thread_id: str):
     response: str
         The response from the bot
     """
+    logger.info("Getting a response from the bot")
     config = {
         "configurable": {
             "thread_id": thread_id,
@@ -36,4 +37,8 @@ async def get_bot_response(question: str, thread_id: str):
 
     response = agent_executor.invoke({"messages": [("human", question)]}, config=config)
 
-    return response
+    ai_message = response["messages"][-1].content
+
+    logger.info("Response from the bot: %s", ai_message)
+
+    return {"ai_message": ai_message}
