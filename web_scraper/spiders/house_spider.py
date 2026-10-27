@@ -15,10 +15,13 @@ SEARCH_PAGE_URL = "https://www.compraensanjuan.com/b.php"
 SEARCH_API_URL = "https://www.compraensanjuan.com/api/busqueda"
 ROWS_PER_PAGE = 21  # Page size used by the site's own pagination
 SESSION_TOKEN_RE = re.compile(r'"st"\s*:\s*"([^"]+)"')
+# Site categories (``cat`` parameter) and the property type stored on each ad
+CATEGORIES = {100: "house", 104: "land"}
+DEFAULT_CATEGORY = 100
 
 
 class HouseSpider(scrapy.Spider):
-    """A spider for scraping house listings from compraensanjuan.com.
+    """A spider for scraping real estate listings (houses and land) from compraensanjuan.com.
 
     The site renders its listings in the browser from the ``/api/busqueda`` JSON
     endpoint, which needs a session token (``st``) embedded in ``b.php`` plus the
@@ -30,27 +33,31 @@ class HouseSpider(scrapy.Spider):
     Attributes:
         name (str): Identifier for this spider, used by Scrapy
         allowed_domains (list): List of domains this spider is restricted to
-        category (int): Site category to scrape (100 = houses)
-        total_pages_to_scrape (int): Maximum number of listing pages to crawl
+        categories (str): Comma-separated site categories to scrape (100 = houses,
+            104 = land). Override with ``-a categories=104``
+        total_pages_to_scrape (int): Maximum number of listing pages to crawl per category
         current_page (int): Number of listing pages crawled so far (per instance)
     """
 
     name = "house_spider"
     allowed_domains = ["compraensanjuan.com"]
-    category = 100
+    categories = "100,104"
     total_pages_to_scrape = 10
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.current_page = 0
         self.total_pages_to_scrape = int(self.total_pages_to_scrape)
+        self.categories = [int(c) for c in str(self.categories).split(",") if c.strip()]
 
-    def _query_params(self, page: int, token: str = "") -> dict:
+    def _query_params(
+        self, page: int, token: str = "", category: int = DEFAULT_CATEGORY
+    ) -> dict:
         """Parameters sent by the site's JS (booleans are serialised as text)."""
         return {
             "texto": "",
             "pagina": str(page),
-            "cat": str(self.category),
+            "cat": str(category),
             "foto": "false",
             "envio": "false",
             "precio": "false",
@@ -60,22 +67,31 @@ class HouseSpider(scrapy.Spider):
         }
 
     def start_requests(self):
-        params = self._query_params(1)
-        params.pop("st")
-        yield scrapy.Request(
-            f"{SEARCH_PAGE_URL}?{urlencode(params)}", callback=self.parse
-        )
+        # One b.php request per category, each with its own session token
+        for category in self.categories:
+            params = self._query_params(1, category=category)
+            params.pop("st")
+            yield scrapy.Request(
+                f"{SEARCH_PAGE_URL}?{urlencode(params)}",
+                callback=self.parse,
+                cb_kwargs={"category": category},
+                # Separate cookie session per category so tokens don't clash
+                meta={"cookiejar": category},
+                dont_filter=True,
+            )
 
-    def parse(self, response: scrapy.http.Response):
+    def parse(self, response: scrapy.http.Response, category: int = DEFAULT_CATEGORY):
         """Extract the session token from b.php and request the first API page."""
         match = SESSION_TOKEN_RE.search(response.text)
         if not match:
             logger.error(f"Session token (st) not found in {response.url}")
             return
-        yield self._api_request(1, match.group(1), referer=response.url)
+        yield self._api_request(1, match.group(1), response.url, category)
 
-    def _api_request(self, page: int, token: str, referer: str) -> scrapy.Request:
-        url = f"{SEARCH_API_URL}?{urlencode(self._query_params(page, token))}"
+    def _api_request(
+        self, page: int, token: str, referer: str, category: int = DEFAULT_CATEGORY
+    ) -> scrapy.Request:
+        url = f"{SEARCH_API_URL}?{urlencode(self._query_params(page, token, category))}"
         return scrapy.Request(
             url,
             callback=self.parse_api,
@@ -84,11 +100,22 @@ class HouseSpider(scrapy.Spider):
                 "X-Requested-With": "XMLHttpRequest",
                 "Referer": referer,
             },
-            cb_kwargs={"page": page, "token": token, "referer": referer},
+            meta={"cookiejar": category},
+            cb_kwargs={
+                "page": page,
+                "token": token,
+                "referer": referer,
+                "category": category,
+            },
         )
 
     def parse_api(
-        self, response: scrapy.http.Response, page: int, token: str, referer: str
+        self,
+        response: scrapy.http.Response,
+        page: int,
+        token: str,
+        referer: str,
+        category: int = DEFAULT_CATEGORY,
     ):
         """Follow every ad of the listing page and request the next one."""
         try:
@@ -108,7 +135,9 @@ class HouseSpider(scrapy.Spider):
         rows = data.get("rows") or []
         total = int(data.get("total") or 0)
         self.current_page += 1
-        logger.info(f"Found {len(rows)} houses in page {page} (total: {total})")
+        logger.info(
+            f"Found {len(rows)} ads in category {category} page {page} (total: {total})"
+        )
 
         for row in rows:
             link = row.get("url")
@@ -118,13 +147,13 @@ class HouseSpider(scrapy.Spider):
             yield scrapy.Request(
                 urljoin(SITE_URL, link),
                 callback=self.parse_product_details,
-                cb_kwargs={"row": row},
+                cb_kwargs={"row": row, "category": category},
             )
 
         last_page = min(math.ceil(total / ROWS_PER_PAGE), self.total_pages_to_scrape)
         if rows and page < last_page:
             logger.info(f"Scraping the next page: {page + 1}")
-            yield self._api_request(page + 1, token, referer)
+            yield self._api_request(page + 1, token, referer, category)
 
     @staticmethod
     def _row_price(row: dict):
@@ -139,8 +168,8 @@ class HouseSpider(scrapy.Spider):
             return "Consultar"
         return f"{row.get('moneda', '')}{amount:,}".replace(",", ".")
 
-    def parse_product_details(self, response, row=None):
-        """Extract house details from individual ad pages."""
+    def parse_product_details(self, response, row=None, category=DEFAULT_CATEGORY):
+        """Extract property details from individual ad pages."""
         row = row or {}
         logger.info("Parsing the individual product details")
         description = response.css("p.comentario-caracteristicas-anuncio::text").getall()
@@ -159,6 +188,7 @@ class HouseSpider(scrapy.Spider):
             or row.get("fchpub"),
             "last_update": response.css("p.actualizado.m-0 span::text").get()
             or row.get("fchact_original"),
+            "property_type": CATEGORIES.get(category),
         }
 
         # Select all <p> elements with the class 'name-caracteristica' inside any container div.

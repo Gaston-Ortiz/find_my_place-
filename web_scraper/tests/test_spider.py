@@ -76,11 +76,39 @@ def test_current_page_is_per_instance():
 
 
 def test_start_requests(spider):
+    """One b.php request per category (houses and land), each in its own cookie jar"""
     requests = list(spider.start_requests())
-    assert len(requests) == 1
-    assert "b.php" in requests[0].url
+    assert len(requests) == 2
+    assert all("b.php" in r.url and "st=" not in r.url for r in requests)
     assert "cat=100" in requests[0].url
-    assert "st=" not in requests[0].url
+    assert "cat=104" in requests[1].url
+    assert [r.meta["cookiejar"] for r in requests] == [100, 104]
+
+
+def test_start_requests_category_override():
+    """-a categories=104 scrapes only land"""
+    requests = list(HouseSpider(categories="104").start_requests())
+    assert len(requests) == 1
+    assert "cat=104" in requests[0].url
+
+
+@pytest.mark.parametrize("category, expected", [(100, "house"), (104, "land")])
+def test_parse_product_details_sets_property_type(spider, category, expected):
+    """Each ad is tagged with the property type of its category"""
+    html = '<html><body><p class="codigo m-0">C: <span>1</span></p></body></html>'
+    response = make_response("https://www.compraensanjuan.com/aviso_1.html", html)
+    row = {
+        "titulo": "Lote",
+        "precio": "1000",
+        "moneda": "U$S ",
+        "visitas": 1,
+        "fchpub": "01/01/2026",
+        "fchact_original": "Hoy",
+    }
+
+    (item,) = list(spider.parse_product_details(response, row=row, category=category))
+
+    assert item.property_type == expected
 
 
 def test_parse_extracts_token_and_requests_api(spider, search_response):
