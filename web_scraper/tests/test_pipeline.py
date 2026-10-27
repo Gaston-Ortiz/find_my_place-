@@ -30,9 +30,9 @@ def sample_item():
     )
 
 
-@patch("elasticsearch.Elasticsearch")
-@patch("web_scraper.dependencies.embedding.get_embedding_model")
-@patch("langchain_elasticsearch.ElasticsearchStore")
+@patch("web_scraper.pipelines.elasticsearch.Elasticsearch")
+@patch("web_scraper.pipelines.get_embedding_model")
+@patch("web_scraper.pipelines.ElasticsearchStore")
 def test_open_spider(mock_es_store, mock_get_embedding, mock_es, pipeline, mock_spider):
     """Test that open_spider initializes connections correctly"""
     # Setup mocks
@@ -47,10 +47,11 @@ def test_open_spider(mock_es_store, mock_get_embedding, mock_es, pipeline, mock_
     mock_es.assert_called_once()
     mock_get_embedding.assert_called_once()
     mock_es_store.assert_called_once()
+    assert pipeline.es_client is mock_es.return_value
     assert hasattr(pipeline, "vector_store")
 
 
-@patch("web_scraper.log.logger")
+@patch("web_scraper.pipelines.logger")
 def test_process_item(mock_logger, pipeline, sample_item, mock_spider):
     """Test that process_item processes the item correctly"""
     # Setup mock vector store

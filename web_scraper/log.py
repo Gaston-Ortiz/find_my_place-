@@ -1,5 +1,14 @@
 import logging
 import logging.config
+import logging.handlers
+import os
+
+# Logs live in <project root>/logs_files regardless of the current directory
+# (/app/logs_files in the Docker image, where the cron job also writes).
+LOG_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs_files"
+)
+os.makedirs(LOG_DIR, exist_ok=True)
 
 # Define the logging configuration
 LOGGING_CONFIG = {
@@ -17,7 +26,7 @@ LOGGING_CONFIG = {
         "file_handler": {
             "class": "logging.handlers.RotatingFileHandler",
             "formatter": "detailed",
-            "filename": "logs_files/web_scraper.log",
+            "filename": os.path.join(LOG_DIR, "web_scraper.log"),
             "maxBytes": 10 * 1024 * 1024,  # 10 MB
             "backupCount": 3,
             "level": "DEBUG",

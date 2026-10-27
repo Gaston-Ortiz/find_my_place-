@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "data": {
+    "total": 45,
+    "rows": [
+      {
+        "titulo": "Beautiful House for Sale",
+        "precio": "150000",
+        "moneda": "U$S ",
+        "fchpub": "15/01/2023",
+        "fchact": "20/05/2023",
+        "fchact_original": "20/05/2023",
+        "visitas": 42,
+        "url": "https://www.compraensanjuan.com/aviso_12345.html"
+      },
+      {
+        "titulo": "Cozy Apartment Downtown",
+        "precio": "0",
+        "moneda": "$ ",
+        "fchpub": "10/01/2023",
+        "fchact": "11/01/2023",
+        "fchact_original": "11/01/2023",
+        "visitas": 7,
+        "url": "/aviso_67890.html"
+      }
+    ],
+    "categories": []
+  }
+}

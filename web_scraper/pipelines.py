@@ -32,7 +32,7 @@ class ElasticSearchPipeline:
     collection_name = "scrapy_items"
 
     def open_spider(self, spider):
-        es_client = elasticsearch.Elasticsearch(
+        self.es_client = elasticsearch.Elasticsearch(
             hosts=[f"http://{settings.ELASTIC_URL}"],
             max_retries=10,
         )
@@ -44,7 +44,7 @@ class ElasticSearchPipeline:
         print(f"Embedding model: {settings.EMBEDDING_MODEL}")
 
         self.vector_store = ElasticsearchStore(
-            es_connection=es_client,
+            es_connection=self.es_client,
             index_name=settings.ELASTIC_INDEX_NAME,
             embedding=embeddings,
             strategy=retrieval_strategies["semantic"],
