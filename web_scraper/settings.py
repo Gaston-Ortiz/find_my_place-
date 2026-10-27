@@ -1,3 +1,5 @@
+import os
+
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) Gecko/20100101 Firefox/135.0"
 )
@@ -13,9 +15,9 @@ ITEM_PIPELINES = {
     "web_scraper.pipelines.ElasticSearchPipeline": 300,
 }
 
-# Elasticsearch settings
-ELASTIC_URL = "elasticsearch:9200"
-ELASTIC_INDEX_NAME = "scrapy_items"
+# Elasticsearch settings (overridable from the environment, e.g. docker-compose)
+ELASTIC_URL = os.getenv("ELASTIC_URL", "elasticsearch:9200")
+ELASTIC_INDEX_NAME = os.getenv("ELASTIC_INDEX_NAME", "scrapy_items")
 
 # Embedding settings
 EMBEDDING_MODEL = "avsolatorio/GIST-small-Embedding-v0"
