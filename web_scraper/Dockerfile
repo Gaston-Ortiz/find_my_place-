@@ -35,5 +35,5 @@ RUN mkdir -p logs_files && touch logs_files/cron.log
 # Print startup message to logs
 RUN echo "Container started"
 
-# Start cron and tail the log to keep the container running
-CMD conda run -n web_scraper bash -c "cron -f & tail -f /app/logs_files/cron.log"
+# Apply database migrations (the container stops if they fail), then start cron and tail the log to keep the container running
+CMD conda run -n web_scraper bash -c "alembic -c web_scraper/alembic.ini upgrade head && (cron -f & tail -f /app/logs_files/cron.log)"

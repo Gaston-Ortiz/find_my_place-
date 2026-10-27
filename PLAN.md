@@ -98,10 +98,10 @@ su fila cruda en `listings.raw_api`.
 ## Fases
 
 ### Fase 0: infraestructura
-- [ ] Agregar servicio `postgres` al `docker-compose.yaml` (con volumen) y `DATABASE_URL` por entorno.
-- [ ] Sacar el pipeline de Elasticsearch de `ITEM_PIPELINES` (queda en pausa, sin borrar el código).
-- [ ] Migraciones del esquema (Alembic o SQL versionado).
-- [ ] Capa de acceso con SQLAlchemy.
+- [x] Agregar servicio `postgres` al `docker-compose.yaml` (con volumen) y `DATABASE_URL` por entorno.
+- [x] Sacar el pipeline de Elasticsearch de `ITEM_PIPELINES` (queda en pausa, sin borrar el código).
+- [x] Migraciones del esquema con Alembic (`web_scraper/migrations`); el contenedor las aplica al arrancar.
+- [x] Modelos SQLAlchemy en `web_scraper/db/models.py`, con tests contra Postgres (`tests/test_db.py`).
 
 ### Fase 1: ingesta completa de venta
 - [ ] Spider sobre las subcategorías 10003 y 10403, sin límite de páginas.
@@ -141,7 +141,8 @@ su fila cruda en `listings.raw_api`.
 - [ ] Tests de parsers y del pipeline con fixtures reales.
 
 ### Fase 5: corrida diaria
-- [ ] Cron una vez por día, de noche, en Docker.
+- [ ] Cron una vez por día, de noche, en Docker. Ojo: cron no hereda las variables de entorno
+      del contenedor (`DATABASE_URL`); hay que pasárselas explícitamente.
 - [ ] Logs y alerta si una corrida falla o trae muchos menos avisos que el día anterior.
 
 ### Después (fuera del alcance actual)

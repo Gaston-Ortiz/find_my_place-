@@ -11,9 +11,16 @@ CONCURRENT_REQUESTS_PER_DOMAIN = 1  # Only 1 request at a time
 SPIDER_MODULES = ["web_scraper.spiders"]
 NEWSPIDER_MODULE = "web_scraper.spiders"
 
-ITEM_PIPELINES = {
-    "web_scraper.pipelines.ElasticSearchPipeline": 300,
-}
+# Elasticsearch is paused (see PLAN.md); the Postgres pipeline comes in phase 1.
+# To re-enable: {"web_scraper.pipelines.ElasticSearchPipeline": 300}
+ITEM_PIPELINES = {}
+
+# Postgres settings (docker-compose sets DATABASE_URL; the default targets the
+# compose service from the host, on POSTGRES_PORT)
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+psycopg://find_my_place:find_my_place@localhost:5433/find_my_place",
+)
 
 # Elasticsearch settings (overridable from the environment, e.g. docker-compose)
 ELASTIC_URL = os.getenv("ELASTIC_URL", "elasticsearch:9200")
