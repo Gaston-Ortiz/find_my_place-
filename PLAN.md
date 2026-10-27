@@ -104,17 +104,28 @@ su fila cruda en `listings.raw_api`.
 - [x] Modelos SQLAlchemy en `web_scraper/db/models.py`, con tests contra Postgres (`tests/test_db.py`).
 
 ### Fase 1: ingesta completa de venta
-- [ ] Spider sobre las subcategorías 10003 y 10403, sin límite de páginas.
-- [ ] Extraer todos los campos de la API y del detalle, incluidas coordenadas y cantidad de fotos.
-- [ ] **Detalle incremental:** la API se recorre completa cada día (~340 páginas, da
+- [x] Spider `listings` (`spiders/listings_spider.py`) sobre las subcategorías 10003 y 10403,
+      sin límite de páginas (`-a max_pages=N` para pruebas).
+- [x] Extraer todos los campos de la API y del detalle, incluidas coordenadas y cantidad de fotos
+      (`dependencies/parsing.py`). La API tiene prioridad; el detalle completa lo que falta.
+- [x] **Detalle incremental:** la API se recorre completa cada día (~340 páginas, da
       precio y visitas de todos los avisos). La página de detalle solo se pide para avisos
-      nuevos o cuyo `fchact_original` cambió. Así se baja la carga sobre el sitio
-      de ~7.000 páginas por día a unas pocas cientos.
-- [ ] Guardar cada respuesta de la API completa en `raw_api_responses` antes de procesarla.
-- [ ] Pipeline de Postgres: upsert en `listings`, insert en `listing_snapshots`,
-      registro en `scrape_runs`. Avisos que no aparecen en la corrida → `is_active = false`.
-- [ ] Guardar `raw_api` y `raw_detail` para poder reprocesar.
-- [ ] Corregir el modelo: `apartment` es en realidad `department` (departamento de San Juan).
+      nuevos o cuyo `fchact_original` cambió (`-a full_refresh=1` pide todas).
+- [x] Guardar cada respuesta de la API completa en `raw_api_responses` (sin el token de sesión).
+- [x] Pipeline de Postgres (`postgres_pipeline.py`): upsert en `listings`, un snapshot por
+      aviso y día, registro en `scrape_runs`. Al cerrar convierte ARS → USD con el tipo de
+      cambio implícito del día y, solo si la categoría se recorrió completa y sin errores en
+      el listado, marca `is_active = false` los avisos que no aparecieron.
+- [x] Guardar `raw_api` y `raw_detail` para poder reprocesar.
+- [x] `department` en Postgres. El modelo de Elasticsearch (`items.py`) sigue con `apartment`
+      porque el bot lo usa; se corrige si se reactiva Elasticsearch.
+- [ ] Primera corrida completa (~7.000 páginas de detalle, unas 2-3 horas con 1 pedido por segundo).
+
+Notas:
+- `house_spider` y el pipeline de Elasticsearch quedan como estaban, en pausa.
+- El cron sigue apuntando a `house_spider`; se cambia a `listings` en la Fase 5.
+- Precio "Consultar": se guarda `price_on_request = true` y la moneda. En la muestra son
+  ~25% de los avisos; muchos tienen el precio en la descripción (Fase 2/3).
 
 ### Fase 2: limpieza y normalización
 - [ ] Parsers: superficies a m² numéricos ("150m2 y 80m2 semicub" → 150 cubiertos + 80 semicubiertos),

@@ -11,8 +11,9 @@ CONCURRENT_REQUESTS_PER_DOMAIN = 1  # Only 1 request at a time
 SPIDER_MODULES = ["web_scraper.spiders"]
 NEWSPIDER_MODULE = "web_scraper.spiders"
 
-# Elasticsearch is paused (see PLAN.md); the Postgres pipeline comes in phase 1.
-# To re-enable: {"web_scraper.pipelines.ElasticSearchPipeline": 300}
+# Pipelines are set per spider: `listings` stores in Postgres (custom_settings).
+# Elasticsearch is paused (see PLAN.md); it was fed by `house_spider` with
+# {"web_scraper.pipelines.ElasticSearchPipeline": 300}
 ITEM_PIPELINES = {}
 
 # Postgres settings (docker-compose sets DATABASE_URL; the default targets the
