@@ -101,6 +101,19 @@ def test_api_values_usd_row(api_rows):
     assert "raw_api" not in sources
 
 
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        ("anuncio_in/7/casa-en-venta", "anuncio_in/7/casa-en-venta"),
+        ("anuncio_in/7/casa-c?ntrica", "anuncio_in/7/casa-cntrica"),
+        ("anuncio_in/7/???-liquido-terreno", "anuncio_in/7/liquido-terreno"),
+        ("anuncio_in/7/???", "anuncio_in/7/aviso"),
+    ],
+)
+def test_ad_url_never_breaks_on_question_marks(url, expected):
+    assert parsing.ad_url({"cod_pub": "7", "url": url}) == parsing.SITE_URL + expected
+
+
 def test_api_values_price_on_request(api_rows):
     """precio 0 is "Consultar": no amount, but the currency the site shows is kept"""
     values, _ = parsing.api_values(api_rows[2], "land")

@@ -50,10 +50,10 @@ def session(engine):
 
 def make_listing(**overrides):
     values = {
-        "code": 2641638,
+        "code": 1,  # not a real ad code: the dev database may hold real ads
         "property_type": "house",
         "title": "Venta. Casa en barrio privado",
-        "url": "https://www.compraensanjuan.com/anuncio_in/2641638/x",
+        "url": "https://www.compraensanjuan.com/anuncio_in/1/x",
         "department": "Rivadavia",
         "lat": Decimal("-31.5234132"),
         "lon": Decimal("-68.5856938"),
@@ -93,7 +93,7 @@ def test_listing_with_snapshot_and_raw_response(session):
     session.flush()
     session.add(
         ListingSnapshot(
-            code=2641638,
+            code=1,
             snapshot_date=date(2026, 10, 27),
             run_id=run.id,
             price_amount=Decimal("220000"),
@@ -106,7 +106,7 @@ def test_listing_with_snapshot_and_raw_response(session):
     )
     session.flush()
 
-    listing = session.get(Listing, 2641638)
+    listing = session.get(Listing, 1)
     assert listing.is_active is True
     assert listing.price_on_request is False
     assert listing.field_sources == {}
@@ -132,8 +132,8 @@ def test_one_snapshot_per_listing_and_day(session):
     session.add(make_listing())
     session.flush()
     day = date(2026, 10, 27)
-    session.add(ListingSnapshot(code=2641638, snapshot_date=day))
+    session.add(ListingSnapshot(code=1, snapshot_date=day))
     session.flush()
-    session.add(ListingSnapshot(code=2641638, snapshot_date=day))
+    session.add(ListingSnapshot(code=1, snapshot_date=day))
     with pytest.raises(IntegrityError):
         session.flush()

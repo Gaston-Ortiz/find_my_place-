@@ -102,6 +102,18 @@ def category_description(categories: dict, code_length: int) -> Optional[str]:
     return None
 
 
+def ad_url(row: dict) -> str:
+    """Absolute ad URL, safe to request.
+
+    The API replaces characters it can't encode (emojis, accents) with "?", which
+    would start a query string: "anuncio_in/2613963/???-liquido" requests
+    "anuncio_in/2613963/" and gets a 404. The site accepts any non-empty slug.
+    """
+    slug = (row.get("url") or "").split(f"/{row['cod_pub']}/", 1)[-1]
+    slug = slug.replace("?", "").strip("-") or "aviso"
+    return urljoin(SITE_URL, f"anuncio_in/{row['cod_pub']}/{slug}")
+
+
 def api_values(row: dict, property_type: str) -> tuple[dict, dict]:
     """Columns filled from one /api/busqueda row."""
     amount = parse_number(row.get("precio"))
@@ -113,7 +125,7 @@ def api_values(row: dict, property_type: str) -> tuple[dict, dict]:
         "code": int(row["cod_pub"]),
         "property_type": property_type,
         "title": clean_text(row.get("titulo")),
-        "url": urljoin(SITE_URL, row.get("url") or ""),
+        "url": ad_url(row),
         "department": category_description(row.get("Categoria"), 7),
         "price_amount": None if price_on_request else amount,
         "currency": currency,  # kept for "Consultar" ads: the site shows it

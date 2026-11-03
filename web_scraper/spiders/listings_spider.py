@@ -18,6 +18,14 @@ ROWS_PER_PAGE = 21  # Page size used by the site's own pagination
 SESSION_TOKEN_RE = re.compile(r'"st"\s*:\s*"([^"]+)"')
 # Sale subcategories (``cat`` parameter) and the property type stored on each ad
 SALE_CATEGORIES = {10003: "house", 10403: "land"}
+# "Fecha publicación ↑": a stable order. The default ("Destacados") reorders ads
+# as they are renewed, so pages shift during a crawl: in the first full crawl
+# ~800 ads showed up twice and as many were never seen.
+SORT_BY_PUBLICATION_DATE = "8"
+# Listing pages go before ad pages, so the whole listing is read in minutes
+LISTING_PRIORITY = 10
+# Share of the site's total that must be seen for a crawl to count as complete
+MIN_COVERAGE = 0.99
 
 
 def load_known_listings() -> dict[int, Optional[datetime]]:
@@ -40,9 +48,11 @@ def load_known_listings() -> dict[int, Optional[datetime]]:
 class ListingsSpider(scrapy.Spider):
     """Crawls every sale ad of houses and land on compraensanjuan.com.
 
-    For each sale subcategory it:
-    1. requests ``b.php`` to get the session token (``st``) the API needs,
-    2. pages through ``/api/busqueda`` and yields every response as an ``ApiPageItem``,
+    For each sale subcategory and listing page it:
+    1. requests ``b.php?pagina=N`` to get the session token (``st``) the API needs.
+       Like the site's own pagination, each page needs its own token: reusing the
+       page 1 token for page 2 returns "La sesión ha expirado",
+    2. requests ``/api/busqueda`` for that page and yields the response as an ``ApiPageItem``,
     3. yields a ``ListingItem`` per ad. The ad page is only requested for new ads or
        ads whose ``fchact_original`` changed since the last crawl (unless
        ``-a full_refresh=1``), so a daily crawl fetches a few hundred pages instead
@@ -74,7 +84,9 @@ class ListingsSpider(scrapy.Spider):
         self.known_listings: dict[int, Optional[datetime]] = {}
         # Per category progress, read by the pipeline when the crawl closes
         self.expected_pages = {c: None for c in self.categories}
+        self.expected_ads = {c: None for c in self.categories}
         self.pages_done = {c: 0 for c in self.categories}
+        self.seen_codes: dict[int, set[int]] = {c: set() for c in self.categories}
         # Listing page errors make the crawl incomplete; ad page errors don't
         self.errors = {c: 0 for c in self.categories}
         self.detail_errors = {c: 0 for c in self.categories}
@@ -84,13 +96,16 @@ class ListingsSpider(scrapy.Spider):
         return SALE_CATEGORIES[category]
 
     def is_complete(self, category: int) -> bool:
-        """Whether every listing page of the category was crawled without errors."""
+        """Whether every listing page was crawled without errors and almost every
+        ad the site reports was seen (if pages shifted, some ads were missed)."""
         expected = self.expected_pages[category]
         return (
             expected is not None
             and self.max_pages is None
             and self.pages_done[category] >= expected
             and self.errors[category] == 0
+            and len(self.seen_codes[category])
+            >= MIN_COVERAGE * (self.expected_ads[category] or 0)
         )
 
     def _query_params(self, page: int, category: int, token: str = "") -> dict:
@@ -102,7 +117,7 @@ class ListingsSpider(scrapy.Spider):
             "foto": "false",
             "envio": "false",
             "precio": "false",
-            "orden": "0",
+            "orden": SORT_BY_PUBLICATION_DATE,
             "estado": "Todos",
             "st": token,
         }
@@ -115,19 +130,23 @@ class ListingsSpider(scrapy.Spider):
                 logger.warning(f"Could not load known listings, fetching all: {error}")
         logger.info(f"{len(self.known_listings)} listings already have their ad page")
 
-        # One b.php request per category, each with its own session token
         for category in self.categories:
-            params = self._query_params(1, category)
-            params.pop("st")
-            yield scrapy.Request(
-                f"{SEARCH_PAGE_URL}?{urlencode(params)}",
-                callback=self.parse,
-                errback=self.on_error,
-                cb_kwargs={"category": category},
-                # Separate cookie session per category so tokens don't clash
-                meta={"cookiejar": category},
-                dont_filter=True,
-            )
+            yield self._search_page_request(1, category)
+
+    def _search_page_request(self, page: int, category: int) -> scrapy.Request:
+        """b.php for a listing page: it embeds the token for that page's API call."""
+        params = self._query_params(page, category)
+        params.pop("st")
+        return scrapy.Request(
+            f"{SEARCH_PAGE_URL}?{urlencode(params)}",
+            callback=self.parse,
+            errback=self.on_error,
+            cb_kwargs={"page": page, "category": category},
+            # Separate cookie session per category so tokens don't clash
+            meta={"cookiejar": category},
+            priority=LISTING_PRIORITY,
+            dont_filter=True,
+        )
 
     def on_error(self, failure):
         category = failure.request.cb_kwargs.get("category")
@@ -135,14 +154,14 @@ class ListingsSpider(scrapy.Spider):
             self.errors[category] += 1
         logger.error(f"Request failed ({failure.request.url}): {failure.value!r}")
 
-    def parse(self, response: scrapy.http.Response, category: int):
-        """Extract the session token from b.php and request the first API page."""
+    def parse(self, response: scrapy.http.Response, category: int, page: int = 1):
+        """Extract the session token from b.php and request that API page."""
         match = SESSION_TOKEN_RE.search(response.text)
         if not match:
             self.errors[category] += 1
             logger.error(f"Session token (st) not found in {response.url}")
             return
-        yield self._api_request(1, category, match.group(1), response.url)
+        yield self._api_request(page, category, match.group(1), response.url)
 
     def _api_request(
         self, page: int, category: int, token: str, referer: str
@@ -158,12 +177,8 @@ class ListingsSpider(scrapy.Spider):
                 "Referer": referer,
             },
             meta={"cookiejar": category},
-            cb_kwargs={
-                "page": page,
-                "category": category,
-                "token": token,
-                "referer": referer,
-            },
+            priority=LISTING_PRIORITY,
+            cb_kwargs={"page": page, "category": category},
         )
 
     def parse_api(
@@ -171,8 +186,6 @@ class ListingsSpider(scrapy.Spider):
         response: scrapy.http.Response,
         page: int,
         category: int,
-        token: str,
-        referer: str,
     ):
         """Store the raw page, yield its ads and request the next page."""
         params = self._query_params(page, category)  # without the session token
@@ -192,6 +205,7 @@ class ListingsSpider(scrapy.Spider):
         rows = data.get("rows") or []
         total = int(data.get("total") or 0)
         self.expected_pages[category] = math.ceil(total / ROWS_PER_PAGE)
+        self.expected_ads[category] = total
         self.pages_done[category] += 1
         logger.info(
             f"Category {category} page {page}/{self.expected_pages[category]}: "
@@ -207,6 +221,10 @@ class ListingsSpider(scrapy.Spider):
                 logger.error(f"Invalid API row skipped ({row.get('cod_pub')}): {error}")
                 continue
             values, sources = api
+            if values["code"] in self.seen_codes[category]:
+                logger.warning(f"Ad {values['code']} seen twice: listing pages shifted")
+                continue
+            self.seen_codes[category].add(values["code"])
             if self._needs_detail(values):
                 yield scrapy.Request(
                     values["url"],
@@ -221,7 +239,7 @@ class ListingsSpider(scrapy.Spider):
         if self.max_pages:
             last_page = min(last_page, self.max_pages)
         if rows and page < last_page:
-            yield self._api_request(page + 1, category, token, referer)
+            yield self._search_page_request(page + 1, category)
 
     def _needs_detail(self, values: dict) -> bool:
         code = values["code"]

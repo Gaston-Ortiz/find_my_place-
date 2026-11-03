@@ -34,15 +34,7 @@ def api_response(payload, page=1, category=10403):
 
 
 def run_parse_api(spider, payload, page=1, category=10403):
-    return list(
-        spider.parse_api(
-            api_response(payload, page, category),
-            page=page,
-            category=category,
-            token="tok",
-            referer="https://www.compraensanjuan.com/b.php",
-        )
-    )
+    return list(spider.parse_api(api_response(payload, page, category), page=page, category=category))
 
 
 @pytest.fixture
@@ -96,9 +88,10 @@ def test_parse_reads_token(spider):
         url="https://www.compraensanjuan.com/b.php",
         body=b'<script>var cfg = {"st": "TOKEN_1"};</script>',
     )
-    (request,) = list(spider.parse(response, category=10403))
+    (request,) = list(spider.parse(response, category=10403, page=3))
     assert "st=TOKEN_1" in request.url
     assert "cat=10403" in request.url
+    assert "pagina=3" in request.url
     assert request.callback == spider.parse_api
 
 
@@ -121,9 +114,11 @@ def test_parse_api_stores_raw_page_and_requests_new_ads(spider, api_payload):
     assert len(details) == 3
     assert details[0].url.startswith("https://www.compraensanjuan.com/anuncio_in/")
 
-    pages = [r for r in results if isinstance(r, scrapy.Request) and r.callback == spider.parse_api]
+    # The next page starts again at b.php, which has the token for that page
+    pages = [r for r in results if isinstance(r, scrapy.Request) and r.callback == spider.parse]
     assert len(pages) == 1
-    assert "pagina=2" in pages[0].url
+    assert "b.php" in pages[0].url and "pagina=2" in pages[0].url
+    assert pages[0].cb_kwargs == {"page": 2, "category": 10403}
     assert spider.expected_pages[10403] == 182
     assert spider.pages_done[10403] == 1
 
@@ -149,7 +144,7 @@ def test_parse_api_skips_unchanged_ads(spider, api_payload):
 def test_parse_api_stops_at_max_pages(api_payload):
     spider = ListingsSpider(max_pages="1")
     results = run_parse_api(spider, api_payload)
-    assert not any(isinstance(r, scrapy.Request) and r.callback == spider.parse_api for r in results)
+    assert not any(isinstance(r, scrapy.Request) and r.callback == spider.parse for r in results)
     assert spider.is_complete(10403) is False
 
 
@@ -214,3 +209,29 @@ def test_detail_error_keeps_api_values(spider, api_payload):
     assert item.has_detail is False
     assert spider.detail_errors[10403] == 1
     assert spider.errors[10403] == 0
+
+
+def test_listing_requests_use_a_stable_order_and_go_first(spider):
+    with patch("web_scraper.spiders.listings_spider.load_known_listings", return_value={}):
+        (request, _) = list(spider.start_requests())
+    assert "orden=8" in request.url  # Fecha publicación ↑
+    assert request.priority > 0
+
+
+def test_ad_seen_twice_is_skipped(spider, api_payload):
+    rows = api_payload["data"]["rows"]
+    api_payload["data"]["rows"] = rows + [rows[0]]
+
+    results = run_parse_api(spider, api_payload)
+
+    details = [r for r in results if isinstance(r, scrapy.Request) and r.callback == spider.parse_detail]
+    assert len(details) == 3
+    assert len(spider.seen_codes[10403]) == 3
+
+
+def test_crawl_missing_ads_is_not_complete(spider, api_payload):
+    """All pages crawled but under 99% of the site's ads seen: pages shifted"""
+    api_payload["data"]["total"] = 21  # one page, but only 3 rows came back
+    run_parse_api(spider, api_payload)
+    assert spider.pages_done[10403] == spider.expected_pages[10403] == 1
+    assert spider.is_complete(10403) is False
