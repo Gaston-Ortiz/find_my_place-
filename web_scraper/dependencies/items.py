@@ -14,6 +14,7 @@ class HouseAdvertisement(BaseModel):
     number_visit: int
     publish_date: str
     last_update: str
+    property_type: Optional[str] = None  # "house" or "land"
 
     # Extra characteristic fields with English attribute names
     total_area: Optional[str] = Field(None, alias="Superficie total")

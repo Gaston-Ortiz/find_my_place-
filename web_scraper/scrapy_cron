@@ -1,3 +1,4 @@
-
-0 * * * * cd /app && PYTHONPATH=/app /opt/conda/bin/conda run -n web_scraper python -m scrapy crawl house_spider >> /app/logs_files/cron.log 2>&1
-# This run the scraper every hour at 0 minutes and saves the logs in the logs_files folder
+SHELL=/bin/bash
+# Every Sunday at 21:00 San Juan time (Monday 00:00 UTC, the container's clock).
+# cron_env.sh is written on container start: cron doesn't inherit the environment.
+0 0 * * 1 cd /app && source /app/cron_env.sh && PYTHONPATH=/app /opt/conda/bin/conda run -n web_scraper python -m scrapy crawl listings >> /app/logs_files/cron.log 2>&1

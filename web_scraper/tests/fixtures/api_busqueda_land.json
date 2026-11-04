@@ -1,0 +1,132 @@
+{
+ "ok": true,
+ "msg": "OK",
+ "error": null,
+ "data": {
+  "time": 0.18078303337097,
+  "total": "3809",
+  "rows": [
+   {
+    "score": "",
+    "destacado": "1",
+    "cod_pub": "2696069",
+    "camino_fotos": "./fotos_inmuebles/",
+    "moneda": "U$S",
+    "precio": "33000.00",
+    "precio_promo": "",
+    "cod_categoria": "1040303",
+    "titulo": "3 Lotes Juntos, Cerrados, En El Centro Del Barrio Horizonte Andino, Total 953 M²",
+    "fchact": "27/10/2026",
+    "visitas": "99",
+    "ruta_description": "",
+    "plantilla": "p_in.php",
+    "siguiendo": "",
+    "Categoria": {
+     "1040303": {
+      "description": "Rawson",
+      "url": "/b.php?cat=1040303"
+     },
+     "10403": {
+      "description": "Venta",
+      "url": "/b.php?cat=10403"
+     },
+     "104": {
+      "description": "Terrenos, Lotes",
+      "url": "/b.php?cat=104"
+     },
+     "1": {
+      "description": "Inmuebles",
+      "url": "/inmuebles"
+     }
+    },
+    "precio_pesos": "51414000.00",
+    "fchpub": "2026-10-21 11:32:00",
+    "ruta": "1,104,10403,1040303",
+    "url": "anuncio_in/2696069/3-lotes-juntos-cerrados-en-el-centro-del-barrio-horizonte-andino-total-953-m?",
+    "url_foto": "./fotos_inmuebles/2696069_min.jpg?v=1793101451",
+    "fchact_original": "2026-10-27 08:44:11"
+   },
+   {
+    "score": "",
+    "destacado": "1",
+    "cod_pub": "2641514",
+    "camino_fotos": "./fotos_inmuebles/",
+    "moneda": "U$S",
+    "precio": "40000.00",
+    "precio_promo": "",
+    "cod_categoria": "1040302             ",
+    "titulo": "Oportunidad - Venta Lote Esquina 430 M2 ,con Planos Aprob. De Vivienda Premium - Bº Priv. \"las Lomas\".-",
+    "fchact": "27/10/2026",
+    "visitas": "634",
+    "ruta_description": "",
+    "plantilla": "p_in.php",
+    "siguiendo": "",
+    "Categoria": {
+     "1040302": {
+      "description": "Pocito",
+      "url": "/b.php?cat=1040302"
+     },
+     "10403": {
+      "description": "Venta",
+      "url": "/b.php?cat=10403"
+     },
+     "104": {
+      "description": "Terrenos, Lotes",
+      "url": "/b.php?cat=104"
+     },
+     "1": {
+      "description": "Inmuebles",
+      "url": "/inmuebles"
+     }
+    },
+    "precio_pesos": "62320000.00",
+    "fchpub": "2026-06-04 21:35:00",
+    "ruta": "1,104,10403,1040302",
+    "url": "anuncio_in/2641514/oportunidad---venta-lote-esquina-430-m2-con-planos-aprob-de-vivienda-premium---b?-priv-las-lomas-",
+    "url_foto": "./fotos_inmuebles/2641514_min.jpg?v=1793074366",
+    "fchact_original": "2026-10-27 01:12:46"
+   },
+   {
+    "score": "",
+    "destacado": "1",
+    "cod_pub": "2549904",
+    "camino_fotos": "./fotos_inmuebles/",
+    "moneda": "$",
+    "precio": "0.00",
+    "precio_promo": "",
+    "cod_categoria": "1040306",
+    "titulo": "Ultimos 2 Lotes Barrio Privado Los Fresnos, Club Amancay",
+    "fchact": "27/10/2026",
+    "visitas": "3830",
+    "ruta_description": "",
+    "plantilla": "p_in.php",
+    "siguiendo": "",
+    "Categoria": {
+     "1040306": {
+      "description": "Santa Lucia",
+      "url": "/b.php?cat=1040306"
+     },
+     "10403": {
+      "description": "Venta",
+      "url": "/b.php?cat=10403"
+     },
+     "104": {
+      "description": "Terrenos, Lotes",
+      "url": "/b.php?cat=104"
+     },
+     "1": {
+      "description": "Inmuebles",
+      "url": "/inmuebles"
+     }
+    },
+    "precio_pesos": "0.00",
+    "fchpub": "2025-11-06 11:17:00",
+    "ruta": "1,104,10403,1040306",
+    "url": "anuncio_in/2549904/ultimos-2-lotes-barrio-privado-los-fresnos-club-amancay",
+    "url_foto": "./fotos_inmuebles/2549904_min.jpg?v=1793101451",
+    "fchact_original": "2026-10-27 08:44:11"
+   }
+  ],
+  "categories": []
+ }
+}

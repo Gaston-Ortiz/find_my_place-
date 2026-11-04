@@ -1,91 +1,207 @@
+import json
+import math
+import re
+from urllib.parse import urlencode, urljoin
+
 import scrapy
+from pydantic import ValidationError
 
 # Local import
 from web_scraper.dependencies import items
 from web_scraper.log import logger
 
-scraped_data = []
+SITE_URL = "https://www.compraensanjuan.com/"
+SEARCH_PAGE_URL = "https://www.compraensanjuan.com/b.php"
+SEARCH_API_URL = "https://www.compraensanjuan.com/api/busqueda"
+ROWS_PER_PAGE = 21  # Page size used by the site's own pagination
+SESSION_TOKEN_RE = re.compile(r'"st"\s*:\s*"([^"]+)"')
+# Site categories (``cat`` parameter) and the property type stored on each ad
+CATEGORIES = {100: "house", 104: "land"}
+DEFAULT_CATEGORY = 100
 
 
 class HouseSpider(scrapy.Spider):
-    """A spider for scraping house listings from compraensanjuan.com.
+    """A spider for scraping real estate listings (houses and land) from compraensanjuan.com.
 
-    This spider crawls through house listing pages on compraensanjuan.com, extracting details
-    about properties including names, prices, descriptions and other metadata.
+    The site renders its listings in the browser from the ``/api/busqueda`` JSON
+    endpoint, which needs a session token (``st``) embedded in ``b.php`` plus the
+    session cookie (kept by Scrapy). The spider therefore:
+    1. requests ``b.php`` and extracts the ``st`` token,
+    2. pages through ``/api/busqueda`` using the same parameters as the site's JS,
+    3. follows the ``url`` of every row to extract the full ad details.
 
     Attributes:
         name (str): Identifier for this spider, used by Scrapy
         allowed_domains (list): List of domains this spider is restricted to
-        start_urls (list): Initial URLs to begin crawling from
-        total_pages_to_scrape (int): Maximum number of listing pages to crawl
-        current_page (int): Counter for number of pages crawled so far
+        categories (str): Comma-separated site categories to scrape (100 = houses,
+            104 = land). Override with ``-a categories=104``
+        total_pages_to_scrape (int): Maximum number of listing pages to crawl per category
+        current_page (int): Number of listing pages crawled so far (per instance)
     """
+
     name = "house_spider"
     allowed_domains = ["compraensanjuan.com"]
-    start_urls = ["https://www.compraensanjuan.com/b.php?cat=100&orden=0&pagina=1"]
+    categories = "100,104"
     total_pages_to_scrape = 10
-    current_page = 0
 
-    def parse(self, response: scrapy.http.Response):
-        """Extract product links from the listings page."""
-        logger.info("Parsing the listings page")
-        list_houses = response.css("p.aviso-title")
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.current_page = 0
+        self.total_pages_to_scrape = int(self.total_pages_to_scrape)
+        self.categories = [int(c) for c in str(self.categories).split(",") if c.strip()]
 
-        logger.info(f"Found {len(list_houses)} houses in the listings page")
+    def _query_params(
+        self, page: int, token: str = "", category: int = DEFAULT_CATEGORY
+    ) -> dict:
+        """Parameters sent by the site's JS (booleans are serialised as text)."""
+        return {
+            "texto": "",
+            "pagina": str(page),
+            "cat": str(category),
+            "foto": "false",
+            "envio": "false",
+            "precio": "false",
+            "orden": "0",
+            "estado": "Todos",
+            "st": token,
+        }
 
-        for house in list_houses:
-            house_link = house.css("a.title.orange-link").attrib["href"]
-            if house_link:
-                full_url = response.urljoin(house_link)  # Convert to absolute URL
-                yield response.follow(full_url, callback=self.parse_product_details)
+    def start_requests(self):
+        # One b.php request per category, each with its own session token
+        for category in self.categories:
+            params = self._query_params(1, category=category)
+            params.pop("st")
+            yield scrapy.Request(
+                f"{SEARCH_PAGE_URL}?{urlencode(params)}",
+                callback=self.parse,
+                cb_kwargs={"category": category},
+                # Separate cookie session per category so tokens don't clash
+                meta={"cookiejar": category},
+                dont_filter=True,
+            )
 
-        next_page = response.css("a.orange-link.next").attrib["href"]
+    def parse(self, response: scrapy.http.Response, category: int = DEFAULT_CATEGORY):
+        """Extract the session token from b.php and request the first API page."""
+        match = SESSION_TOKEN_RE.search(response.text)
+        if not match:
+            logger.error(f"Session token (st) not found in {response.url}")
+            return
+        yield self._api_request(1, match.group(1), response.url, category)
 
-        # Iterate over the next pages
-        if next_page is not None and self.current_page < self.total_pages_to_scrape:
-            logger.info(f"Scraping the next page: {next_page}")
-            self.current_page += 1
-            next_page_url = response.urljoin(next_page)
-            yield response.follow(next_page_url, callback=self.parse)
+    def _api_request(
+        self, page: int, token: str, referer: str, category: int = DEFAULT_CATEGORY
+    ) -> scrapy.Request:
+        url = f"{SEARCH_API_URL}?{urlencode(self._query_params(page, token, category))}"
+        return scrapy.Request(
+            url,
+            callback=self.parse_api,
+            headers={
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": referer,
+            },
+            meta={"cookiejar": category},
+            cb_kwargs={
+                "page": page,
+                "token": token,
+                "referer": referer,
+                "category": category,
+            },
+        )
 
-        logger.info(f"Scraped {self.current_page} pages")
+    def parse_api(
+        self,
+        response: scrapy.http.Response,
+        page: int,
+        token: str,
+        referer: str,
+        category: int = DEFAULT_CATEGORY,
+    ):
+        """Follow every ad of the listing page and request the next one."""
+        try:
+            payload = json.loads(response.text)
+        except json.JSONDecodeError:
+            logger.error(f"Invalid JSON from the search API (page {page})")
+            return
 
-    def parse_product_details(self, response):
-        """Extract laptop details from individual product pages."""
+        if not payload.get("ok"):
+            logger.error(
+                f"Search API error (page {page}): "
+                f"{payload.get('error') or payload.get('msg')}"
+            )
+            return
 
+        data = payload.get("data") or {}
+        rows = data.get("rows") or []
+        total = int(data.get("total") or 0)
+        self.current_page += 1
+        logger.info(
+            f"Found {len(rows)} ads in category {category} page {page} (total: {total})"
+        )
+
+        for row in rows:
+            link = row.get("url")
+            if not link:
+                continue
+            # Row URLs are relative to the site root, not to /api/
+            yield scrapy.Request(
+                urljoin(SITE_URL, link),
+                callback=self.parse_product_details,
+                cb_kwargs={"row": row, "category": category},
+            )
+
+        last_page = min(math.ceil(total / ROWS_PER_PAGE), self.total_pages_to_scrape)
+        if rows and page < last_page:
+            logger.info(f"Scraping the next page: {page + 1}")
+            yield self._api_request(page + 1, token, referer, category)
+
+    @staticmethod
+    def _row_price(row: dict):
+        """Build a price string like the one shown on the ad from an API row."""
+        if not row:
+            return None
+        try:
+            amount = int(float(row.get("precio") or 0))
+        except (TypeError, ValueError):
+            return None
+        if amount == 0:
+            return "Consultar"
+        return f"{row.get('moneda', '')}{amount:,}".replace(",", ".")
+
+    def parse_product_details(self, response, row=None, category=DEFAULT_CATEGORY):
+        """Extract property details from individual ad pages."""
+        row = row or {}
         logger.info("Parsing the individual product details")
-        description = response.css(
-            "p.comentario-caracteristicas-anuncio::text"
-        ).getall()
+        description = response.css("p.comentario-caracteristicas-anuncio::text").getall()
 
         item = {
-            "name": response.css("h2[class*='anuncio-title']::text").get(),
-            "price": response.css("h3.text-center.precio::text").get(),
+            "name": response.css("h2[class*='anuncio-title']::text").get()
+            or row.get("titulo"),
+            "price": response.css("h3.text-center.precio::text").get()
+            or self._row_price(row),
             "description": " ".join(description),
             "url": response.url,
             "code_number": response.css("p.codigo.m-0 span::text").get(),
-            "number_visit": response.css("p.visitas.m-0 span::text").get(),
-            "publish_date": response.css("p.publicado.m-0 span::text").get(),
-            "last_update": response.css("p.actualizado.m-0 span::text").get(),
+            "number_visit": response.css("p.visitas.m-0 span::text").get()
+            or row.get("visitas"),
+            "publish_date": response.css("p.publicado.m-0 span::text").get()
+            or row.get("fchpub"),
+            "last_update": response.css("p.actualizado.m-0 span::text").get()
+            or row.get("fchact_original"),
+            "property_type": CATEGORIES.get(category),
         }
 
         # Select all <p> elements with the class 'name-caracteristica' inside any container div.
-        p_elements = response.css("div.mx-auto p.name-caracteristica")
-        for p in p_elements:
+        for p in response.css("div.mx-auto p.name-caracteristica"):
             # The label (e.g., "Superficie total:") is the text node before the <span>
-            label = p.xpath("text()").get()
-            if label:
-                # Remove any trailing spaces or colon characters
-                label = label.strip(" :")
+            label = (p.xpath("text()").get() or "").strip(" :\n\t")
+            if not label:
+                continue
             # The value is inside the <span class="caracteristica">
-            value = p.css("span.caracteristica::text").get(default="")
-
-            # add to items
-            item[label] = value
+            item[label] = p.css("span.caracteristica::text").get(default="")
 
         # Validate and convert the scraped data to the defined model
-        item = items.HouseAdvertisement(**item)
-
-        # # Append the scraped data to the global list
-        # scraped_data.append(item.model_dump())
-        yield item
+        try:
+            yield items.HouseAdvertisement(**item)
+        except ValidationError as error:
+            logger.error(f"Invalid ad skipped ({response.url}): {error}")
