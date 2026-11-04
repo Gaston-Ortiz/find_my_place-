@@ -3,6 +3,7 @@ services:
     build:
       context: ./web_scraper
       dockerfile: Dockerfile
+    restart: unless-stopped
     volumes:
       - ./web_scraper:/app/web_scraper
       - ./logs_files:/app/logs_files
@@ -44,6 +45,7 @@ services:
 
   postgres:
     image: postgres:16
+    restart: unless-stopped
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-find_my_place}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-find_my_place}

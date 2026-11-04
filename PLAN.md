@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Obtener a diario **todos** los avisos de **venta** de casas y terrenos de compraensanjuan.com,
+Obtener cada semana **todos** los avisos de **venta** de casas y terrenos de compraensanjuan.com,
 guardarlos en **Postgres** como un set de datos limpio y completo (lo menos nulos posible),
 con historial de precios. Sobre ese set, más adelante, un modelo detectará oportunidades
 de compra: avisos cuyo precio está claramente por debajo de lo que valen propiedades
@@ -66,7 +66,7 @@ Para minimizar nulos, cada campo se toma de la fuente más confiable y se comple
 | `field_sources` | jsonb | de qué fuente salió cada campo |
 | `raw_api`, `raw_detail` | jsonb | datos crudos, para reprocesar sin volver a scrapear |
 
-### `listing_snapshots`: historial diario (1 fila por aviso y día)
+### `listing_snapshots`: historial semanal (1 fila por aviso y corrida; como máximo 1 por día)
 
 `code`, `snapshot_date` (PK compuesta), `price_amount`, `currency`, `price_usd`,
 `visits`, `site_updated_at`, `is_active`.
@@ -108,7 +108,7 @@ su fila cruda en `listings.raw_api`.
       sin límite de páginas (`-a max_pages=N` para pruebas).
 - [x] Extraer todos los campos de la API y del detalle, incluidas coordenadas y cantidad de fotos
       (`dependencies/parsing.py`). La API tiene prioridad; el detalle completa lo que falta.
-- [x] **Detalle incremental:** la API se recorre completa cada día (~340 páginas, da
+- [x] **Detalle incremental:** la API se recorre completa en cada corrida (~340 páginas, da
       precio y visitas de todos los avisos). La página de detalle solo se pide para avisos
       nuevos o cuyo `fchact_original` cambió (`-a full_refresh=1` pide todas).
 - [x] Guardar cada respuesta de la API completa en `raw_api_responses` (sin el token de sesión).
@@ -123,7 +123,6 @@ su fila cruda en `listings.raw_api`.
 
 Notas:
 - `house_spider` y el pipeline de Elasticsearch quedan como estaban, en pausa.
-- El cron sigue apuntando a `house_spider`; se cambia a `listings` en la Fase 5.
 - Precio "Consultar": se guarda `price_on_request = true` y la moneda. En la muestra son
   ~25% de los avisos; muchos tienen el precio en la descripción (Fase 2/3).
 
@@ -151,21 +150,26 @@ Notas:
 - [ ] Metas de completitud, p. ej. superficie total, precio, departamento y coordenadas > 95%.
 - [ ] Tests de parsers y del pipeline con fixtures reales.
 
-### Fase 5: corrida diaria
-- [ ] Cron una vez por día, de noche, en Docker. Ojo: cron no hereda las variables de entorno
-      del contenedor (`DATABASE_URL`); hay que pasárselas explícitamente.
-- [ ] Logs y alerta si una corrida falla o trae muchos menos avisos que el día anterior.
+### Fase 5: corrida semanal
+- [x] Cron semanal de `listings` en el contenedor del scraper: domingos a las 21:00 de San Juan
+      (`web_scraper/scrapy_cron`). `docker_start.sh` aplica las migraciones y deja `DATABASE_URL`
+      disponible para cron. Duración estimada: ~2 horas (el 69% de los avisos cambia en 7 días).
+- [x] `restart: unless-stopped` en `web_scraper` y `postgres`.
+- [ ] Limitación: corre en una notebook. Si a esa hora está dormida o Docker está apagado, la
+      corrida se pierde hasta la semana siguiente, y si se duerme durante la corrida, se pausa.
+- [ ] Logs y alerta si una corrida falla o trae muchos menos avisos que la anterior.
 
 ### Después (fuera del alcance actual)
 - Precio de referencia en USD/m² por tipo y zona (mediana de comparables).
 - Modelo de valuación (gradient boosting), separado para casas y terrenos.
 - Puntaje de oportunidad: descuento contra el modelo + bajas de precio + días publicado + confianza.
-- Reporte o alerta diaria y explicación desde el bot.
+- Reporte o alerta semanal y explicación desde el bot.
 
 ## Decisiones tomadas
 
 - Solo avisos de **venta**, de casas y terrenos.
 - Todo se guarda en **Postgres**.
+- La corrida es **semanal**, con cron en Docker.
 - Primero un set de datos limpio y completo; el modelo después.
 - Postgres corre en Docker (docker-compose).
 - Elasticsearch queda **en pausa**: no se alimenta ni se borra.

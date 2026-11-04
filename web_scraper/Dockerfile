@@ -23,17 +23,8 @@ COPY scrapy.cfg ./
 RUN mkdir -p web_scraper
 COPY . web_scraper/
 
-# Copy the cron file into the container's cron.d directory
-COPY scrapy_cron /etc/cron.d/scrapy_cron
+# Install the cron job
+RUN crontab web_scraper/scrapy_cron
 
-# Set correct permissions for the cron job file and add it to crontab
-RUN chmod 0644 /etc/cron.d/scrapy_cron && crontab /etc/cron.d/scrapy_cron
-
-# Create a log file for cron output
-RUN mkdir -p logs_files && touch logs_files/cron.log
-
-# Print startup message to logs
-RUN echo "Container started"
-
-# Apply database migrations (the container stops if they fail), then start cron and tail the log to keep the container running
-CMD conda run -n web_scraper bash -c "alembic -c web_scraper/alembic.ini upgrade head && (cron -f & tail -f /app/logs_files/cron.log)"
+# Apply migrations, start cron and tail its log to keep the container running
+CMD ["conda", "run", "--no-capture-output", "-n", "web_scraper", "bash", "/app/web_scraper/docker_start.sh"]
